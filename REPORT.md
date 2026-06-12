@@ -72,5 +72,101 @@ python migrate.py
 
 
 
+## 4. Schema design and justification
+
+The project decomposes the flat file into **5 tables**:
+
+```
+organizations ──→ stations ──→ ports ──→ sessions ←── users
+```
+
+### Table-by-table justification
+
+
+
+
+#### `organizations`
+
+`Org Name` has only 2 distinct values in the flat file ("City of Palo Alto"
+and "City of Palo Alto " with a trailing space), but it is repeated on all
+259,415 rows. Storing it once and referencing it by `org_id` removes this
+redundancy and fixes an update anomaly. The trailing-space variant is stripped during migration.
+
+
+
+#### `stations`
+Station metadata (address, city, postal code, latitude, longitude) describes
+the physical charging location, not the individual session. Two sessions at
+the same station always share the same address, so there are repetitions in the CSV file. 
+`Station Name` is used as the stable identifier rather than `MAC Address`,
+because MAC addresses are tied to hardware, not to the station.
+
+Latitude/longitude required a similar decision, some stations have
+more than one recorded coordinate pair with differences of only a few tens
+of metres (GPS measurement noise). For each station, the most frequently recorded coordinate
+pair is stored as the canonical location.
+
+
+
+
+#### `ports`
+
+Each station has up to two physical charging ports, and `port_type` /
+`plug_type` are properties of the port itself, not of a session ; the same
+port always has the same connector type. Splitting `ports` into its own
+table expresses this one-to-many relationship explicitly, with a foreign key `station_id` and a `UNIQUE (station_id,
+port_number)` constraint to prevent duplicate port records.
+
+
+
+
+#### `users`
+
+Not every session has an associated user: 7,677 rows have no `User ID` at
+all in the source file. Rather than discard these sessions, `user_id` in
+`sessions` is nullable, and joins to `users` use `LEFT JOIN` so anonymous
+sessions remain in query results with `user_id = NULL`.
+
+
+Two further cases are treated the same way:
+
+-`User ID = 0`  is the value ChargePoint assigns to unregistered/guest sessions,it does not
+identify a real user so it is mapped to NULL. 
+
+-Likewise, 41 rows have alphanumeric IDs with a trailing "V"  across  distinct
+values; these do not correspond to valid numeric user IDs and are coerced to
+NULL. 
+
+In all three cases the session itself is kept, only the user link is removed.
+
+
+
+
+
+#### `sessions`
+
+`sessions` is the fact table: every other table describes an entity
+(organisation, station, port, user) that exists independently of any single
+charging event, while `sessions` records what actually happened, when, on
+which port, by whom, for how long, and how much energy was delivered.
+
+Durations (`Total Duration`, `Charging Time`) are stored as `INTEGER` seconds
+rather than as `HH:MM:SS` strings. This makes aggregation easier.
+
+
+`plug_in_event_id`, the natural identifier provided by the dataset, turned
+out not to be globally unique: the counter resets per port, so the same ID
+appears for different sessions at different ports. It therefore cannot serve as a primary key. Instead,
+`session_id` is an `AUTOINCREMENT` surrogate key and the closest available
+natural key is the combination `(plug_in_event_id, port_id, start_datetime)`.
+
+
+
+
+
+
+
+
+
 
 
