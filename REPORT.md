@@ -162,6 +162,46 @@ natural key is the combination `(plug_in_event_id, port_id, start_datetime)`.
 
 
 
+###  Constraints and integrity
+
+
+
+All foreign keys use `ON DELETE RESTRICT` . In this
+schema, deleting a station or a port should not silently delete years of
+session history.
+
+
+Two `UNIQUE` constraints enforce the structure described above.
+`UNIQUE (station_name, org_id)` on `stations` prevents the same station
+being inserted twice, and `UNIQUE (station_id, port_number)` on `ports`
+ensures a station cannot have two ports with the same number.
+
+
+
+`CHECK` constraints encode domain knowledge directly in the schema.
+`port_type` is restricted to `'Level 1'` or `'Level 2'` and `plug_type` to
+`'J1772'` or `'NEMA 5-20R'`, the only values present in the dataset.
+`energy_kwh`, `fee_usd`, and the duration columns are constrained to be
+non-negative (`>= 0`), since negative energy or negative charging time would indicate a data error rather than a valid session.
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
