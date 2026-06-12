@@ -30,7 +30,6 @@ connected through foreign keys.
 │   └── queries.sql               # Query demonstrations 
 ├              
 ├── migrate.py                    # Migration pipeline: CSV → SQLite
-├── chargepoint.db                # Output 
 ├── README.md                     # Public-facing documentation
 └── REPORT.md                     # This file
 ```
