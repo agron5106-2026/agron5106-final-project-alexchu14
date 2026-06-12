@@ -160,7 +160,19 @@ appears for different sessions at different ports. It therefore cannot serve as 
 `session_id` is an `AUTOINCREMENT` surrogate key and the closest available
 natural key is the combination `(plug_in_event_id, port_id, start_datetime)`.
 
+### Columns excluded from the schema
 
+| Column | Reason for exclusion |
+|---|---|
+| `Country` | 100% "United States" — zero informational value |
+| `State/Province` | 100% "California"  |
+| `Currency` | 100% "USD"  |
+| `GHG Savings (kg)` | Derived column — calculable from `energy_kwh` |
+| `Gasoline Savings (gallons)` | Derived column |
+| `Transaction Date (Pacific Time)` | Duplicate of `End Date` in a different timezone |
+| `County` |  33% missing — not useful given city/postal code |
+| `System S/N` | 30% missing — hardware detail not needed for analysis |
+| `Model Number` |  30% missing |
 
 ###  Constraints and integrity
 
@@ -188,7 +200,73 @@ non-negative (`>= 0`), since negative energy or negative charging time would ind
 
 
 
+## 5. Data quality issues
 
+The following anomalies (not exhaustive) were discovered during exploratory analysis (Google Sheet and Gemini, and panda) and handled during migration. None of them justified deleting rows entirely, in each case only the affected field was corrected in the` migrate.py` file, preserving the rest of the session data.
+
+
+###  Alphanumeric User IDs 
+
+**Fix:** `df["User ID"] = pd.to_numeric(df["User ID"], errors="coerce")`
+converts these values to `NaN`, which become `NULL` in the database. The
+session itself  is unaffected; only the link to a specific user is removed, treating the session as anonymous.
+
+
+
+###  User ID = 0 
+
+
+**Fix:** rows with `User ID == 0` are mapped to `NULL`, identically to the
+genuinely missing IDs (7,677 rows) and the alphanumeric IDs above. All three
+cases are unified into the same "anonymous session" representation.
+
+
+
+
+###  Duplicate sessions
+
+34 rows share the same `(station, port_number, start_datetime)` but have
+slightly different `End Date` or `Energy (kWh)` values.
+
+**Fix:** for each duplicate group, only the row with the highest `energy_kwh`
+is kept, on the assumption that the higher value reflects the more complete
+measurement. The other row is dropped before insertion.
+
+
+
+
+
+### GPS coordinate drift 
+
+18 of the 46 stations have more than one `(Latitude, Longitude)` pair across
+the 10-year dataset. The differences are on the order of a few tens of
+metres.
+
+
+**Fix:** for each station, the most frequently occurring coordinate pair is taken as the canonical location stored in `stations`.
+
+
+
+
+###  Station name typo 
+
+13 rows use the station name `"PALO ALTO CA / BRYANT # 1"` (with a space
+before the port number), while the remaining rows for the same physical
+station use `"PALO ALTO CA / BRYANT #1"` (no space). Left unfixed, this would
+create a 47th station with only 13 sessions.
+
+
+**Fix:** `df["Station Name"].str.replace("# ", "#")` is applied in
+`load_csv`, before any table extraction, so all rows for this station are grouped correctly.
+
+
+### Trailing whitespace in `Org Name`
+
+The value `"City of Palo Alto "` (with a trailing space) appears alongside
+`"City of Palo Alto"` and would otherwise be treated as a second, distinct organisation.
+
+**Fix:** `df["Org Name"] = df["Org Name"].str.strip()` is applied during
+loading, so both variants map to the same `organizations` row.
 
 
 
