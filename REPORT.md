@@ -16,3 +16,23 @@ Every row repeats the same station name, address, organisation, and port type : 
 This makes the file inefficient to query and easy to corrupt
 This project migrates the flat file into a normalised SQLite database with 5 tables (`organizations`, `stations`, `ports`, `users`, `sessions`),
 connected through foreign keys. 
+
+---
+
+## 2. Repository structure and file descriptions
+
+```
+.
+├── data/                         # Raw source data 
+│   └── ChargePoint_Data_CY20Q4.csv
+├── sql/
+│   ├── create_schema.sql         # DDL: all CREATE TABLE, indexes, constraints
+│   └── queries.sql               # Query demonstrations 
+├              
+├── migrate.py                    # Migration pipeline: CSV → SQLite
+├── chargepoint.db                # Output 
+├── README.md                     # Public-facing documentation
+└── REPORT.md                     # This file
+```
+
+---
